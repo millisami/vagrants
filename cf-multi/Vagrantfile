@@ -1,0 +1,140 @@
+Vagrant::Config.run do |config|
+  sshdir = "#{ENV['HOME']}/.ssh/"
+  aptdir = (ENV['APTCACHE'] or "#{ENV['HOME']}/aptcache/")
+  
+  config.vm.box = "millisami-11-04-server-amd64"
+  config.ssh.max_tries = 20
+  
+  config.vm.share_folder("v-apt", "/var/cache/apt", aptdir)
+  config.vm.share_folder("v-ssh", "/home/vagrant/.host-ssh", sshdir)
+    
+  config.vm.define :app1 do |web_config|
+    web_config.vm.network "33.33.33.10"
+    web_config.vm.host_name = "app1.web.server" 
+    web_config.vm.forward_port("http", 80, 8888)
+    web_config.vm.forward_port("ssh", 22, 2200, :auto => true)
+    web_config.vm.customize do |vm|
+      vm.name = "App1 Server"
+      vm.memory_size = 128
+    end
+    
+    web_config.vm.provision :chef_solo do |chef|
+      chef.cookbooks_path = ["~/chef-repo/cookbooks"]
+      chef.roles_path = ["~/chef/roles"]
+      chef.log_level = :debug
+      
+      chef.add_recipe "base"
+      chef.add_recipe "rvm::install"
+      chef.add_recipe "rvm::ruby_192"
+      chef.add_recipe "app"
+      chef.add_recipe "app::deploy"
+      
+      # chef.add_role "app"
+      chef.json = {
+        :base => {
+          :system_packages => ["tree", "htop", "vim-nox"]
+        },
+        :bluepill => { :bin => "/usr/local/rvm/gems/ruby-1.9.2-p290/bin/bluepill" },
+        :app => {
+          :repository => "git://github.com/millisami/chef-vagrant-mongoid-app.git",
+          :rails_env => "production"
+        },
+        :unicorn => { :bundled => true },
+        :db => {
+          :adapter => "mongoid",
+          :name => "app_production",
+          :host => "localhost"
+        }
+      }
+    end
+    
+  end
+
+  config.vm.define :app2 do |web_config|
+    web_config.vm.network "33.33.33.11"
+    web_config.vm.host_name = "app2.web.server"    
+    web_config.vm.forward_port("http", 80, 9999)
+    web_config.vm.forward_port("ssh", 22, 3300, :auto => true)
+    web_config.vm.customize do |vm|
+      vm.name = "App2 Server"
+      vm.memory_size = 128
+    end
+  end
+
+  config.vm.define :db1 do |db_config|
+    db_config.vm.network "33.33.33.100"
+    db_config.vm.host_name = "db1.server"
+    db_config.vm.forward_port("db", 3306, 3306)
+    db_config.vm.forward_port("ssh", 22, 4400, :auto => true)
+    db_config.vm.customize do |vm|
+      vm.name = "Db1 Server"
+      vm.memory_size = 200
+    end
+    
+    db_config.vm.provision :chef_solo do |chef|
+      chef.cookbooks_path = ["~/chef-repo/cookbooks"]
+      chef.roles_path = ["~/chef/roles"]
+      chef.log_level = :debug
+      
+      chef.add_recipe "build-essential"
+      chef.add_recipe "base"
+      chef.add_recipe "mongodb::default"
+      chef.add_recipe "mongodb::install"
+      chef.add_recipe "mongodb::configure"
+      
+      chef.add_recipe "redis2"
+      
+      chef.json = {}
+    end
+  end
+
+  config.vm.define :worker1 do |worker_config|
+    worker_config.vm.network "33.33.33.200"
+    worker_config.vm.host_name = "worker1.server"
+    worker_config.vm.forward_port("worker", 4406, 4406)
+    worker_config.vm.forward_port("ssh", 22, 5500, :auto => true)
+    worker_config.vm.customize do |vm|
+      vm.name = "Worker1 Server"
+      vm.memory_size = 128
+    end
+
+    worker_config.vm.provision :chef_solo do |chef|
+      chef.cookbooks_path = ["~/chef-repo/cookbooks"]
+      chef.roles_path = ["~/chef/roles"]
+      chef.log_level = :debug
+      
+      chef.add_recipe "build-essential"
+      chef.add_recipe "base"
+      chef.add_recipe "mongodb::default"
+      chef.add_recipe "mongodb::install"
+      chef.add_recipe "mongodb::configure"
+      chef.json = {}
+    end
+  end
+
+  
+
+
+  # Enable provisioning with chef server, specifying the chef server URL,
+  # and the path to the validation key (relative to this Vagrantfile).
+  #
+  # The Opscode Platform uses HTTPS. Substitute your organization for
+  # ORGNAME in the URL and validation key.
+  #
+  # If you have your own Chef Server, use the appropriate URL, which may be
+  # HTTP instead of HTTPS depending on your configuration. Also change the
+  # validation key to validation.pem.
+  #
+  # config.vm.provision :chef_client do |chef|
+  #   chef.chef_server_url = "https://api.opscode.com/organizations/ORGNAME"
+  #   chef.validation_key_path = "ORGNAME-validator.pem"
+  # end
+  #
+  # If you're using the Opscode platform, your validator client is
+  # ORGNAME-validator, replacing ORGNAME with your organization name.
+  #
+  # IF you have your own Chef Server, the default validation client name is
+  # chef-validator, unless you changed the configuration.
+  #
+  #   chef.validation_client_name = "ORGNAME-validator"
+end
