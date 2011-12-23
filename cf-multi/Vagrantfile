@@ -1,6 +1,8 @@
 Vagrant::Config.run do |config|
   sshdir = "#{ENV['HOME']}/.ssh/"
   aptdir = (ENV['APTCACHE'] or "#{ENV['HOME']}/aptcache/")
+  # permission on ~/aptcache/ directory
+  # drwxr-xr-x     5 millisami  staff   170B Sep 14 04:54 aptcache
   
   config.vm.box = "millisami-11-04-server-amd64"
   config.ssh.max_tries = 20
